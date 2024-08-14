@@ -12,6 +12,16 @@
 //878506826545655859 실제 서버 ID
 // nexonAPI ID : test_801f3742a10330739576cc3b0199c33ad5f3615fbeb08785131c3b20b2e9b44aefe8d04e6d233bd35cf2fabdeb93fb0d
 
+/*     private const ulong GuildId = 878506826545655859; // 서버 ID
+       private const ulong ChannelId = 878506916303749150; // 채널 ID
+        private const ulong RoleIdPatch = 1175695651636514886; // Patch 역할 ID
+        private const ulong RoleIdNotice = 1175695614567256095; // Notice 역할 ID
+        private const ulong RoleIdTserver = 1272571651464368262; // 역할 ID
+        private const ulong RoleIdSunday = 1272571687891636265; // 역할 ID
+        private const ulong RoleIdCash = 1272571721353793587; // 역할 ID
+테스트용 ID
+
+*/
 
 using Discord;
 using Discord.Commands;
@@ -33,13 +43,13 @@ namespace DiscordBot
     {
         // 상수 및 설정 값
         private const string Token = "MTI2OTU0Mzg3NjkwMTg2NzU5NA.GTJTnH.rMrE11YjpqYxGCLr5sapLb38_2wD7F2O-IGK4Y"; // 봇 토큰을 여기에 입력하세요
-        private const ulong GuildId = 878506826545655859; // 서버 ID
-        private const ulong ChannelId = 878506916303749150; // 채널 ID
-        private const ulong RoleIdPatch = 1175695651636514886; // Patch 역할 ID
-        private const ulong RoleIdNotice = 1175695614567256095; // Notice 역할 ID
-        private const ulong RoleIdTserver = 1272571651464368262; // 역할 ID
-        private const ulong RoleIdSunday = 1272571687891636265; // 역할 ID
-        private const ulong RoleIdCash = 1272571721353793587; // 역할 ID
+        private const ulong GuildId = 1067415854075088947; // 서버 ID
+        private const ulong ChannelId = 1173925554144170065; // 채널 ID
+        private const ulong RoleIdPatch = 1173919883667439676; // Patch 역할 ID
+        private const ulong RoleIdNotice = 1174961036185587752; // Notice 역할 ID
+        private const ulong RoleIdTserver = 1175027509612527637; // 역할 ID
+        private const ulong RoleIdSunday = 1174008549295263814; // 역할 ID
+        private const ulong RoleIdCash = 1175993825227976765; // 역할 ID
 
         private const string imgPatch = "https://media.discordapp.net/attachments/1072220784262664253/1177153740520833084/FileDownloader.png?ex=66b9159a&is=66b7c41a&hm=b8f70c8323e0117ba7e136425294f1a5bd3288dad63834a7fe4ae7241addbded&=&format=webp&quality=lossless&width=810&height=162";
         private const string imgNotice = "https://media.discordapp.net/attachments/1072220784262664253/1177152621560221786/images.jpg?ex=66b9148f&is=66b7c30f&hm=2e76682efdcdd8b27112cf6dd3bc33a45f00c343eb3b13de1746e399419c8354&=&format=webp";
