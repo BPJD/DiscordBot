@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using HtmlAgilityPack;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using static System.Collections.Specialized.BitVector32;
@@ -38,12 +39,13 @@ namespace DiscordBot
         private const ulong RoleIdNotice = 1175695614567256095; // Notice 역할 ID
         private const ulong RoleIdTserver = 1272571651464368262; // 역할 ID
         private const ulong RoleIdSunday = 1272571687891636265; // 역할 ID
+        private const ulong RoleIdCash = 1272571721353793587; // 역할 ID
 
         private const string imgPatch = "https://media.discordapp.net/attachments/1072220784262664253/1177153740520833084/FileDownloader.png?ex=66b9159a&is=66b7c41a&hm=b8f70c8323e0117ba7e136425294f1a5bd3288dad63834a7fe4ae7241addbded&=&format=webp&quality=lossless&width=810&height=162";
         private const string imgNotice = "https://media.discordapp.net/attachments/1072220784262664253/1177152621560221786/images.jpg?ex=66b9148f&is=66b7c30f&hm=2e76682efdcdd8b27112cf6dd3bc33a45f00c343eb3b13de1746e399419c8354&=&format=webp";
         private const string imgTserver = "https://media.discordapp.net/attachments/1072220784262664253/1272572564044255345/gm_news_04.png?ex=66bb770e&is=66ba258e&hm=6146a79ba6234e1b35ea938bdd6ffd9673cdfdb77e82dcff49144e62186a6699&=&format=webp&quality=lossless&width=810&height=162";
         private const string imgSunday = "https://media.discordapp.net/attachments/1072220784262664253/1272576354088652974/UF0Eb6kspUwnfJ5-pcSPrCH8pgyNOgwGIG4p_qp-ogbz0QPPFQ_VUqeiVGxidwFNZYhOTdr6zcwttVqvoZ1h1g.png?ex=66bb7a96&is=66ba2916&hm=e694da35296a14cb6dc43782d8e166e67ea5d53b2debe2a64ac88f49d5f68537&=&format=webp&quality=lossless&width=810&height=608";
-        private static string[] emojies = { ":wrench:", ":adhesive_bandage:", ":sun_with_face:", ":test_tube:", ":money_with_wings:" };
+        private static string[] emojies = { ":wrench:", ":adhesive_bandage:", ":sun_with_face:", ":test_tube:", ":money_with_wings:", ":money_with_wings:" };
 
         private static readonly string[] ArmorClasses = { "전사", "마법사", "궁수", "도적", "해적" };
         private static readonly string[] ArmorParts = { "견장", "장갑", "망토", "신발" };
@@ -104,8 +106,7 @@ namespace DiscordBot
             var commands = new List<SlashCommandBuilder>
             {
                 new SlashCommandBuilder().WithName("방어구상자").WithDescription("앱방상/아방상에서 뽑을 방어구를 랜덤으로 골라서 추천합니다."),
-                new SlashCommandBuilder().WithName("무기상자").WithDescription("앱무상/아무상에서 뽑을 무기를 랜덤으로 골라서 추천합니다."),
-                new SlashCommandBuilder().WithName("ping").WithDescription("Replies with pong!")
+                new SlashCommandBuilder().WithName("무기상자").WithDescription("앱무상/아무상에서 뽑을 무기를 랜덤으로 골라서 추천합니다.")
             };
 
             foreach (var command in commands)
@@ -129,6 +130,7 @@ namespace DiscordBot
             var newTserver = await apiService.GetTserverAsync();
             var noticeUpdates = await apiService.GetNoticeUpdatesAsync();
             var eventUpdates = await apiService.GetSundayAsync();
+            var noticeCashes = await apiService.GetCashshopAsync();
 
             if (newNotices.Any())
             {
@@ -160,6 +162,13 @@ namespace DiscordBot
                     await SendEmbedMessageAsync(sunday, $"<@&{RoleIdSunday}>", imgSunday, 2);
                 }
             }
+            if (noticeCashes.Any())
+            {
+                foreach (var cash in noticeCashes)
+                {
+                    await SendEmbedMessageAsync(cash, $"<@&{RoleIdCash}>", "", 4);
+                }
+            }
 
         }
 
@@ -182,8 +191,14 @@ namespace DiscordBot
             }
         }
 
+        public void ThumbnailURLGet(int type)
+        {
+
+        }
+
         private async Task SendEmbedMessageAsync(object noticeOrUpdate, string mention, string imageUrl, int type)
         {
+            
             var channel = _client.GetChannel(ChannelId) as IMessageChannel;
             if (channel == null)
             {
@@ -205,13 +220,19 @@ namespace DiscordBot
             else if (noticeOrUpdate is NoticeUpdate update)
             {
                 embedBuilder.WithTitle(update.Title).WithUrl(update.Url);
-                embedBuilder.WithColor(Color.Gold);
+                embedBuilder.WithColor(Color.Blue);
             }
             else if (noticeOrUpdate is EventNotice sunday )
             {
                 embedBuilder.WithTitle(sunday.Title).WithUrl(sunday.Url);
                 embedBuilder.WithDescription($"{sunday.Date}");
                 embedBuilder.WithColor(Color.Red);
+            }
+            else if (noticeOrUpdate is CashshopNotice cash)
+            {
+                embedBuilder.WithTitle(cash.Title).WithUrl(cash.Url);
+                embedBuilder.WithDescription($"{cash.Date}");
+                embedBuilder.WithColor(Color.Gold);
             }
 
             await channel.SendMessageAsync($"[ {emojies[type]} | {mention} ]", embed: embedBuilder.Build());
@@ -223,6 +244,17 @@ namespace DiscordBot
             Console.WriteLine(log.ToString());
             return Task.CompletedTask;
         }
+    }
+
+    public class CashshopNotice
+    {
+        public string Title { get; set; }
+        public string Url { get; set; }
+        public int NoticeId { get; set; }
+        public DateTime Date { get; set; }
+        public DateTime DateSaleStart { get; set; }
+        public DateTime DateSaleEnd { get; set; }
+        public bool OngoingFlag { get; set; }
     }
 
     public class EventNotice
@@ -260,6 +292,9 @@ namespace DiscordBot
 
         [JsonProperty("event_notice")]
         public List<EventNotice> NoticeEvent { get; set; }
+
+        [JsonProperty("cashshop_notice")]
+        public List<CashshopNotice> NoticeCashshop { get; set; }
     }
 
     public class NexonApiService
@@ -307,7 +342,7 @@ namespace DiscordBot
 
                 // "패치예정"이 제목에 포함된 새 공지 필터링
                 var newNotices = data.Notice
-                    .Where(n => /* !_previousNoticeIds.Contains(n.NoticeId) && */ n.Title.Contains("패치"))
+                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("패치예정"))
                     .ToList();
 
                 // 필터링된 공지 출력
@@ -366,7 +401,7 @@ namespace DiscordBot
 
                 // "테스트월드"이 제목에 포함된 새 공지 필터링
                 var newNotices = data.Notice
-                    .Where(n => /* !_previousNoticeIds.Contains(n.NoticeId) && */ n.Title.Contains("테스트월드"))
+                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("테스트월드"))
                     .ToList();
 
                 // 필터링된 공지 출력
@@ -419,7 +454,7 @@ namespace DiscordBot
 
                 // "안내"가 제목에 포함된 새 공지 필터링
                 var newUpdates = data.NoticeUpdates
-                    .Where(n => /* !_previousNoticeIds.Contains(n.NoticeId) && */ n.Title.Contains("(수정)"))
+                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("업데이트"))
                     .ToList();
 
                 // 필터링된 공지 출력
@@ -476,7 +511,7 @@ namespace DiscordBot
 
                 // "패치예정"이 제목에 포함된 새 공지 필터링
                 var newNotices = data.NoticeEvent
-                    .Where(n => /* !_previousNoticeIds.Contains(n.NoticeId) && */ n.Title.Contains("버닝"))
+                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("썬데이"))
                     .ToList();
 
                 // 필터링된 공지 출력
@@ -502,6 +537,65 @@ namespace DiscordBot
             {
                 Console.WriteLine($"Exception occurred: {ex.Message}");
                 return new List<EventNotice>();
+            }
+        }
+
+        public async Task<List<CashshopNotice>> GetCashshopAsync()
+        {
+            try
+            {
+                // API 호출
+                var response = await _httpClient.GetAsync("https://open.api.nexon.com/maplestory/v1/notice-cashshop");
+
+                // HTTP 상태 코드 확인
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Failed to fetch data. Status code: {response.StatusCode}");
+                    return new List<CashshopNotice>();
+                }
+
+                // JSON 응답 읽기
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                //Console.WriteLine($"Response JSON: {jsonResponse}");  // 응답 출력
+
+                // JSON을 객체로 변환
+                var data = JsonConvert.DeserializeObject<NexonApiResponse>(jsonResponse);
+
+                // data 또는 data.Notice가 null일 경우 처리
+                if (data?.NoticeCashshop == null)
+                {
+                    Console.WriteLine("No notices found in the response.");
+                    return new List<CashshopNotice>();
+                }
+
+                // "패치예정"이 제목에 포함된 새 공지 필터링
+                var newNotices = data.NoticeCashshop
+                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains(""))
+                    .ToList();
+
+                // 필터링된 공지 출력
+                if (newNotices.Any())
+                {
+                    Console.WriteLine($"New notices found: {newNotices.Count}");
+                    foreach (var notice in newNotices)
+                    {
+                        Console.WriteLine($"Notice ID: {notice.NoticeId}, Title: {notice.Title}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("No new notices to process.");
+                }
+
+                // 새 공지의 ID 저장
+                SaveNewNoticeIds(newNotices.Select(n => n.NoticeId));
+
+                return newNotices;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception occurred: {ex.Message}");
+                return new List<CashshopNotice>();
             }
         }
 
