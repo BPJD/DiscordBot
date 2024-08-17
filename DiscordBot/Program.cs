@@ -36,6 +36,9 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using static System.Collections.Specialized.BitVector32;
 using System.Threading.Channels;
+using Newtonsoft.Json.Linq;
+using System.Text.Json.Serialization;
+using JsonConverter = Newtonsoft.Json.JsonConverter;
 
 namespace DiscordBot
 {
@@ -64,9 +67,9 @@ namespace DiscordBot
             "ESP리미터", "체인", "매직건틀렛", "부채", "한손 검", "한손 도끼", "한손 둔기",
             "단검", "케인", "완드", "스태프", "두손 검", "두손 도끼", "두손 둔기", "차크람",
             "창", "폴암", "활", "석궁", "아대", "너클", "건", "듀얼보우건", "핸드캐논",
-            "건틀렛리볼버", "에인션트보우"
+            "건틀렛리볼버", "에인션트보우", "에센스"
         };
-        
+
 
         private DiscordSocketClient _client;
         private Random _rand = new Random();
@@ -101,7 +104,7 @@ namespace DiscordBot
                     while (true)
                     {
                         await CheckAndSendNotices(apiService);
-                        await Task.Delay(10000); // 5분마다 확인
+                        await Task.Delay(600000); // 5분마다 확인
                     }
                 });
             };
@@ -133,6 +136,8 @@ namespace DiscordBot
 
             Console.WriteLine("Slash commands registered successfully.");
         }
+
+
 
         private async Task CheckAndSendNotices(NexonApiService apiService)
         {
@@ -208,7 +213,7 @@ namespace DiscordBot
 
         private async Task SendEmbedMessageAsync(object noticeOrUpdate, string mention, string imageUrl, int type)
         {
-            
+
             var channel = _client.GetChannel(ChannelId) as IMessageChannel;
             if (channel == null)
             {
@@ -232,7 +237,7 @@ namespace DiscordBot
                 embedBuilder.WithTitle(update.Title).WithUrl(update.Url);
                 embedBuilder.WithColor(Color.Blue);
             }
-            else if (noticeOrUpdate is EventNotice sunday )
+            else if (noticeOrUpdate is EventNotice sunday)
             {
                 embedBuilder.WithTitle(sunday.Title).WithUrl(sunday.Url);
                 embedBuilder.WithDescription($"{sunday.Date}");
@@ -256,11 +261,36 @@ namespace DiscordBot
         }
     }
 
+
+    public class NoticeIdConverter : Newtonsoft.Json.JsonConverter<long?>
+    {
+        public override long? ReadJson(JsonReader reader, Type objectType, long? existingValue, bool hasExistingValue, JsonSerializer serializer)
+        {
+            if (reader.TokenType == JsonToken.Integer)
+            {
+                return Convert.ToInt64(reader.Value);
+            }
+            if (reader.TokenType == JsonToken.Null)
+            {
+                return null;
+            }
+            throw new JsonSerializationException($"Unexpected token {reader.TokenType} when parsing notice_id.");
+        }
+
+        public override void WriteJson(JsonWriter writer, long? value, JsonSerializer serializer)
+        {
+            writer.WriteValue(value);
+        }
+    }
+
     public class CashshopNotice
     {
         public string Title { get; set; }
         public string Url { get; set; }
-        public int NoticeId { get; set; }
+
+        [JsonPropertyName("notice_id")]
+        public long NoticeId { get; set; }
+
         public DateTime Date { get; set; }
         public DateTime DateSaleStart { get; set; }
         public DateTime DateSaleEnd { get; set; }
@@ -271,7 +301,10 @@ namespace DiscordBot
     {
         public string Title { get; set; }
         public string Url { get; set; }
-        public int NoticeId { get; set; }
+
+        [JsonPropertyName("notice_id")]
+        public long NoticeId { get; set; }
+
         public DateTime Date { get; set; }
         public DateTime DateEventStart { get; set; }
         public DateTime DateEventEnd { get; set; }
@@ -281,7 +314,10 @@ namespace DiscordBot
     {
         public string Title { get; set; }
         public string Url { get; set; }
-        public int NoticeId { get; set; }
+
+        [JsonPropertyName("notice_id")]
+        public long NoticeId { get; set; }
+
         public DateTime Date { get; set; }
     }
 
@@ -289,7 +325,10 @@ namespace DiscordBot
     {
         public string Title { get; set; }
         public string Url { get; set; }
-        public int NoticeId { get; set; }
+
+        [JsonPropertyName("notice_id")]
+        public long NoticeId { get; set; }
+
         public DateTime Date { get; set; }
     }
 
@@ -311,7 +350,15 @@ namespace DiscordBot
     {
         private readonly HttpClient _httpClient;
         private readonly string _filePath = "notice_ids.txt";
-        private readonly HashSet<int> _previousNoticeIds;
+        private readonly HashSet<long> _previousNoticeIds;
+
+        private const string noticeUrl = "https://open.api.nexon.com/maplestory/v1/notice";
+
+        private const string updateUrl = "https://open.api.nexon.com/maplestory/v1/notice-update";
+
+        private const string sundayUrl = "https://open.api.nexon.com/maplestory/v1/notice-event";
+
+        private const string cashUrl = "https://open.api.nexon.com/maplestory/v1/notice-cashshop";
 
         public NexonApiService()
         {
@@ -322,12 +369,13 @@ namespace DiscordBot
             _previousNoticeIds = LoadPreviousNoticeIds();
         }
 
+
         public async Task<List<Notice>> GetNoticesAsync()
         {
             try
             {
                 // API 호출
-                var response = await _httpClient.GetAsync("https://open.api.nexon.com/maplestory/v1/notice");
+                var response = await _httpClient.GetAsync(noticeUrl);
 
                 // HTTP 상태 코드 확인
                 if (!response.IsSuccessStatusCode)
@@ -338,33 +386,46 @@ namespace DiscordBot
 
                 // JSON 응답 읽기
                 var jsonResponse = await response.Content.ReadAsStringAsync();
-                //Console.WriteLine($"Response JSON: {jsonResponse}");  // 응답 출력
 
-                // JSON을 객체로 변환
-                var data = JsonConvert.DeserializeObject<NexonApiResponse>(jsonResponse);
+                // JSON을 JObject로 파싱
+                var jObject = JObject.Parse(jsonResponse);
 
-                // data 또는 data.Notice가 null일 경우 처리
-                if (data?.Notice == null)
+                // Notice 목록을 생성
+                var newNotices = new List<Notice>();
+
+                // 공지 배열을 순회
+                foreach (var item in jObject["notice"])
                 {
-                    Console.WriteLine("No notices found in the response.");
-                    return new List<Notice>();
-                }
+                    // NoticeId 추출
+                    long noticeId = item["notice_id"]?.Value<long>() ?? 0;
+                    string title = item["title"]?.Value<string>();
+                    string url = item["url"]?.Value<string>();
+                    DateTime date = item["date"]?.Value<DateTime>() ?? DateTime.MinValue;
 
-                // "패치예정"이 제목에 포함된 새 공지 필터링
-                var newNotices = data.Notice
-                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("패치예정"))
-                    .ToList();
-
-                // 필터링된 공지 출력
-                if (newNotices.Any())
-                {
-                    Console.WriteLine($"New notices found: {newNotices.Count}");
-                    foreach (var notice in newNotices)
+                    // 필터링 조건 확인
+                    if (!_previousNoticeIds.Contains(noticeId) && title.Contains("패치예정"))
                     {
-                        Console.WriteLine($"Notice ID: {notice.NoticeId}, Title: {notice.Title}");
+                        Console.WriteLine($"Notice ID: {noticeId}, Title: {title}");
+
+                        // Notice 객체 생성
+                        var notice = new Notice
+                        {
+                            NoticeId = noticeId,
+                            Title = title,
+                            Url = url,
+                            Date = date
+                        };
+
+                        // 리스트에 추가
+                        newNotices.Add(notice);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
-                else
+
+                if (!newNotices.Any())
                 {
                     Console.WriteLine("No new notices to process.");
                 }
@@ -374,6 +435,7 @@ namespace DiscordBot
 
                 return newNotices;
             }
+
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception occurred: {ex.Message}");
@@ -381,12 +443,15 @@ namespace DiscordBot
             }
         }
 
+
+        private const string tServerURL = "https://maplestory.nexon.com/Testworld/Main";
+
         public async Task<List<Notice>> GetTserverAsync()
         {
             try
             {
                 // API 호출
-                var response = await _httpClient.GetAsync("https://open.api.nexon.com/maplestory/v1/notice");
+                var response = await _httpClient.GetAsync(noticeUrl);
 
                 // HTTP 상태 코드 확인
                 if (!response.IsSuccessStatusCode)
@@ -397,33 +462,46 @@ namespace DiscordBot
 
                 // JSON 응답 읽기
                 var jsonResponse = await response.Content.ReadAsStringAsync();
-                //Console.WriteLine($"Response JSON: {jsonResponse}");  // 응답 출력
 
-                // JSON을 객체로 변환
-                var data = JsonConvert.DeserializeObject<NexonApiResponse>(jsonResponse);
+                // JSON을 JObject로 파싱
+                var jObject = JObject.Parse(jsonResponse);
 
-                // data 또는 data.Notice가 null일 경우 처리
-                if (data?.Notice == null)
+                // Notice 목록을 생성
+                var newNotices = new List<Notice>();
+
+                // 공지 배열을 순회
+                foreach (var item in jObject["notice"])
                 {
-                    Console.WriteLine("No notices found in the response.");
-                    return new List<Notice>();
-                }
+                    // NoticeId 추출
+                    long noticeId = item["notice_id"]?.Value<long>() ?? 0;
+                    string title = item["title"]?.Value<string>();
+                    string url = tServerURL;
+                    DateTime date = item["date"]?.Value<DateTime>() ?? DateTime.MinValue;
 
-                // "테스트월드"이 제목에 포함된 새 공지 필터링
-                var newNotices = data.Notice
-                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("테스트월드"))
-                    .ToList();
-
-                // 필터링된 공지 출력
-                if (newNotices.Any())
-                {
-                    Console.WriteLine($"New notices found: {newNotices.Count}");
-                    foreach (var notice in newNotices)
+                    // 필터링 조건 확인
+                    if (!_previousNoticeIds.Contains(noticeId) && title.Contains("테스트월드"))
                     {
-                        Console.WriteLine($"Notice ID: {notice.NoticeId}, Title: {notice.Title}");
+                        Console.WriteLine($"Notice ID: {noticeId}, Title: {title}");
+
+                        // Notice 객체 생성
+                        var notice = new Notice
+                        {
+                            NoticeId = noticeId,
+                            Title = title,
+                            Url = url,
+                            Date = date
+                        };
+
+                        // 리스트에 추가
+                        newNotices.Add(notice);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
-                else
+
+                if (!newNotices.Any())
                 {
                     Console.WriteLine("No new notices to process.");
                 }
@@ -433,6 +511,7 @@ namespace DiscordBot
 
                 return newNotices;
             }
+
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception occurred: {ex.Message}");
@@ -445,50 +524,72 @@ namespace DiscordBot
             try
             {
                 // API 호출
-                var response = await _httpClient.GetAsync("https://open.api.nexon.com/maplestory/v1/notice-update");
-                response.EnsureSuccessStatusCode();
+                var response = await _httpClient.GetAsync(updateUrl);
 
-                // JSON 응답 읽기
-                var jsonResponse = await response.Content.ReadAsStringAsync();
-                //Console.WriteLine($"Response JSON: {jsonResponse}");  // 응답 출력
-
-                // JSON을 객체로 변환
-                var data = JsonConvert.DeserializeObject<NexonApiResponse>(jsonResponse);
-
-                // data 또는 data.NoticeUpdates가 null일 경우 처리
-                if (data?.NoticeUpdates == null)
+                // HTTP 상태 코드 확인
+                if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("No notices found in the response.");
+                    Console.WriteLine($"Failed to fetch data. Status code: {response.StatusCode}");
                     return new List<NoticeUpdate>();
                 }
 
-                // "안내"가 제목에 포함된 새 공지 필터링
-                var newUpdates = data.NoticeUpdates
-                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("업데이트"))
-                    .ToList();
+                // JSON 응답 읽기
+                var jsonResponse = await response.Content.ReadAsStringAsync();
 
-                // 필터링된 공지 출력
-                if (newUpdates.Any())
+                // JSON을 JObject로 파싱
+                var jObject = JObject.Parse(jsonResponse);
+
+                // Notice 목록을 생성
+                var newNotices = new List<NoticeUpdate>();
+
+                // 공지 배열을 순회
+                foreach (var item in jObject["update_notice"])
                 {
-                    Console.WriteLine($"New notices found: {newUpdates.Count}");
-                    foreach (var notice in newUpdates)
+                    // NoticeId 추출
+                    long noticeId = item["notice_id"]?.Value<long>() ?? 0;
+                    string title = item["title"]?.Value<string>();
+                    string url = item["url"]?.Value<string>();
+                    DateTime date = item["date"]?.Value<DateTime>() ?? DateTime.MinValue;
+
+                    // 필터링 조건 확인
+                    if (!_previousNoticeIds.Contains(noticeId) && title.Contains("업데이트"))
                     {
-                        Console.WriteLine($"Notice ID: {notice.NoticeId}, Title: {notice.Title}");
+                        Console.WriteLine($"Notice ID: {noticeId}, Title: {title}");
+
+                        // Notice 객체 생성
+                        var notice = new NoticeUpdate
+                        {
+                            NoticeId = noticeId,
+                            Title = title,
+                            Url = url,
+                            Date = date
+                        };
+
+                        // 리스트에 추가
+                        newNotices.Add(notice);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
-                else
+
+                if (!newNotices.Any())
                 {
                     Console.WriteLine("No new notices to process.");
                 }
 
-                return newUpdates;
+                // 새 공지의 ID 저장
+                SaveNewNoticeIds(newNotices.Select(n => n.NoticeId));
+
+                return newNotices;
             }
+
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception occurred: {ex.Message}");
                 return new List<NoticeUpdate>();
             }
-
         }
 
         public async Task<List<EventNotice>> GetSundayAsync()
@@ -496,7 +597,7 @@ namespace DiscordBot
             try
             {
                 // API 호출
-                var response = await _httpClient.GetAsync("https://open.api.nexon.com/maplestory/v1/notice-event");
+                var response = await _httpClient.GetAsync(sundayUrl);
 
                 // HTTP 상태 코드 확인
                 if (!response.IsSuccessStatusCode)
@@ -507,33 +608,46 @@ namespace DiscordBot
 
                 // JSON 응답 읽기
                 var jsonResponse = await response.Content.ReadAsStringAsync();
-                //Console.WriteLine($"Response JSON: {jsonResponse}");  // 응답 출력
 
-                // JSON을 객체로 변환
-                var data = JsonConvert.DeserializeObject<NexonApiResponse>(jsonResponse);
+                // JSON을 JObject로 파싱
+                var jObject = JObject.Parse(jsonResponse);
 
-                // data 또는 data.Notice가 null일 경우 처리
-                if (data?.NoticeEvent == null)
+                // Notice 목록을 생성
+                var newNotices = new List<EventNotice>();
+
+                // 공지 배열을 순회
+                foreach (var item in jObject["event_notice"])
                 {
-                    Console.WriteLine("No notices found in the response.");
-                    return new List<EventNotice>();
-                }
+                    // NoticeId 추출
+                    long noticeId = item["notice_id"]?.Value<long>() ?? 0;
+                    string title = item["title"]?.Value<string>();
+                    string url = item["url"]?.Value<string>();
+                    DateTime date = item["date"]?.Value<DateTime>() ?? DateTime.MinValue;
 
-                // "패치예정"이 제목에 포함된 새 공지 필터링
-                var newNotices = data.NoticeEvent
-                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains("썬데이"))
-                    .ToList();
-
-                // 필터링된 공지 출력
-                if (newNotices.Any())
-                {
-                    Console.WriteLine($"New notices found: {newNotices.Count}");
-                    foreach (var notice in newNotices)
+                    // 필터링 조건 확인
+                    if (!_previousNoticeIds.Contains(noticeId) && title.Contains("썬데이"))
                     {
-                        Console.WriteLine($"Notice ID: {notice.NoticeId}, Title: {notice.Title}");
+                        Console.WriteLine($"Notice ID: {noticeId}, Title: {title}");
+
+                        // Notice 객체 생성
+                        var notice = new EventNotice
+                        {
+                            NoticeId = noticeId,
+                            Title = title,
+                            Url = url,
+                            Date = date
+                        };
+
+                        // 리스트에 추가
+                        newNotices.Add(notice);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
-                else
+
+                if (!newNotices.Any())
                 {
                     Console.WriteLine("No new notices to process.");
                 }
@@ -543,6 +657,7 @@ namespace DiscordBot
 
                 return newNotices;
             }
+
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception occurred: {ex.Message}");
@@ -555,7 +670,7 @@ namespace DiscordBot
             try
             {
                 // API 호출
-                var response = await _httpClient.GetAsync("https://open.api.nexon.com/maplestory/v1/notice-cashshop");
+                var response = await _httpClient.GetAsync(cashUrl);
 
                 // HTTP 상태 코드 확인
                 if (!response.IsSuccessStatusCode)
@@ -566,33 +681,46 @@ namespace DiscordBot
 
                 // JSON 응답 읽기
                 var jsonResponse = await response.Content.ReadAsStringAsync();
-                //Console.WriteLine($"Response JSON: {jsonResponse}");  // 응답 출력
 
-                // JSON을 객체로 변환
-                var data = JsonConvert.DeserializeObject<NexonApiResponse>(jsonResponse);
+                // JSON을 JObject로 파싱
+                var jObject = JObject.Parse(jsonResponse);
 
-                // data 또는 data.Notice가 null일 경우 처리
-                if (data?.NoticeCashshop == null)
+                // Notice 목록을 생성
+                var newNotices = new List<CashshopNotice>();
+
+                // 공지 배열을 순회
+                foreach (var item in jObject["cashshop_notice"])
                 {
-                    Console.WriteLine("No notices found in the response.");
-                    return new List<CashshopNotice>();
-                }
+                    // NoticeId 추출
+                    long noticeId = item["notice_id"]?.Value<long>() ?? 0;
+                    string title = item["title"]?.Value<string>();
+                    string url = item["url"]?.Value<string>();
+                    DateTime date = item["date"]?.Value<DateTime>() ?? DateTime.MinValue;
 
-                // "패치예정"이 제목에 포함된 새 공지 필터링
-                var newNotices = data.NoticeCashshop
-                    .Where(n => !_previousNoticeIds.Contains(n.NoticeId) && n.Title.Contains(""))
-                    .ToList();
-
-                // 필터링된 공지 출력
-                if (newNotices.Any())
-                {
-                    Console.WriteLine($"New notices found: {newNotices.Count}");
-                    foreach (var notice in newNotices)
+                    // 필터링 조건 확인
+                    if (!_previousNoticeIds.Contains(noticeId) && title.Contains(""))
                     {
-                        Console.WriteLine($"Notice ID: {notice.NoticeId}, Title: {notice.Title}");
+                        Console.WriteLine($"Notice ID: {noticeId}, Title: {title}");
+
+                        // Notice 객체 생성
+                        var notice = new CashshopNotice
+                        {
+                            NoticeId = noticeId,
+                            Title = title,
+                            Url = url,
+                            Date = date
+                        };
+
+                        // 리스트에 추가
+                        newNotices.Add(notice);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
-                else
+
+                if (!newNotices.Any())
                 {
                     Console.WriteLine("No new notices to process.");
                 }
@@ -602,6 +730,7 @@ namespace DiscordBot
 
                 return newNotices;
             }
+
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception occurred: {ex.Message}");
@@ -609,9 +738,9 @@ namespace DiscordBot
             }
         }
 
-        private HashSet<int> LoadPreviousNoticeIds()
+        private HashSet<long> LoadPreviousNoticeIds()
         {
-            var noticeIds = new HashSet<int>();
+            var noticeIds = new HashSet<long>();
             if (File.Exists(_filePath))
             {
                 foreach (var line in File.ReadAllLines(_filePath))
@@ -625,7 +754,7 @@ namespace DiscordBot
             return noticeIds;
         }
 
-        private void SaveNewNoticeIds(IEnumerable<int> noticeIds)
+        private void SaveNewNoticeIds(IEnumerable<long> noticeIds)
         {
             using (var writer = new StreamWriter(_filePath, true))
             {
@@ -636,4 +765,7 @@ namespace DiscordBot
             }
         }
     }
+
+
+
 }
