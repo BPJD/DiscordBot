@@ -104,7 +104,7 @@ namespace DiscordBot
                     while (true)
                     {
                         await CheckAndSendNotices(apiService);
-                        await Task.Delay(600000); // 5분마다 확인
+                        await Task.Delay(180000); // 3분마다 확인
                     }
                 });
             };
@@ -192,10 +192,10 @@ namespace DiscordBot
             switch (command.Data.Name)
             {
                 case "방어구상자":
-                    await command.RespondAsync($"랜덤으로 뽑힌 방어구는 {ArmorClasses[_rand.Next(ArmorClasses.Length)]} {ArmorParts[_rand.Next(ArmorParts.Length)]} 입니다!");
+                    await command.RespondAsync($"[ {ArmorClasses[_rand.Next(ArmorClasses.Length)]} {ArmorParts[_rand.Next(ArmorParts.Length)]} ] 당첨!");
                     break;
                 case "무기상자":
-                    await command.RespondAsync($"랜덤으로 뽑힌 무기는 {WeaponList[_rand.Next(WeaponList.Length)]} 입니다!");
+                    await command.RespondAsync($"[ {WeaponList[_rand.Next(WeaponList.Length)]} ] 당첨!");
                     break;
                 case "ping":
                     await command.RespondAsync("Pong!");
@@ -364,7 +364,7 @@ namespace DiscordBot
         {
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("accept", "application/json");
-            _httpClient.DefaultRequestHeaders.Add("x-nxopen-api-key", "test_801f3742a10330739576cc3b0199c33ad5f3615fbeb08785131c3b20b2e9b44aefe8d04e6d233bd35cf2fabdeb93fb0d");
+            _httpClient.DefaultRequestHeaders.Add("x-nxopen-api-key", "live_801f3742a10330739576cc3b0199c33a39f91eb34bf8f4714908a997459f1c6fefe8d04e6d233bd35cf2fabdeb93fb0d");
 
             _previousNoticeIds = LoadPreviousNoticeIds();
         }
@@ -421,7 +421,7 @@ namespace DiscordBot
                     }
                     else
                     {
-                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
+                       // Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
 
@@ -497,7 +497,7 @@ namespace DiscordBot
                     }
                     else
                     {
-                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
+                     //   Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
 
@@ -570,7 +570,7 @@ namespace DiscordBot
                     }
                     else
                     {
-                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
+                      //  Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
 
@@ -643,7 +643,7 @@ namespace DiscordBot
                     }
                     else
                     {
-                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
+                       // Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
 
@@ -716,7 +716,7 @@ namespace DiscordBot
                     }
                     else
                     {
-                        Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
+                      //  Console.WriteLine($"Skipped Notice: ID={noticeId}, Title={title}");
                     }
                 }
 
