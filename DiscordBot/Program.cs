@@ -33,8 +33,6 @@ namespace DiscordBot
     class Program
     {
         // 상수 및 설정 값
-        string discordBotToken = Environment.GetEnvironmentVariable("DISCORD_BOT_TOKEN");
-        string GuildID = Environment.GetEnvironmentVariable("GUILD_ID");
 
         private const ulong ChannelId = 1173925554144170065; // 채널 ID
         private const ulong RoleIdPatch = 1173919883667439676; // Patch 역할 ID
@@ -67,12 +65,22 @@ namespace DiscordBot
 
         public static async Task Main(string[] args)
         {
+
             var program = new Program();
             await program.RunBotAsync();
         }
 
         public async Task RunBotAsync()
         {
+
+            string token = Environment.GetEnvironmentVariable("DISCORD_BOT_TOKEN");
+            if (string.IsNullOrEmpty(token))
+            {
+                Console.WriteLine("Bot token is not set in environment variables.");
+                return;
+            }
+
+
             _client = new DiscordSocketClient(new DiscordSocketConfig
             {
                 GatewayIntents = GatewayIntents.Guilds
@@ -81,7 +89,7 @@ namespace DiscordBot
             _client.Log += LogAsync;
             _client.SlashCommandExecuted += SlashCommandHandlerAsync;
 
-            await _client.LoginAsync(TokenType.Bot, discordBotToken);
+            await _client.LoginAsync(TokenType.Bot, token);
             await _client.StartAsync();
 
             _client.Ready += async () =>
@@ -105,6 +113,14 @@ namespace DiscordBot
 
         private async Task RegisterCommandsAsync()
         {
+            string GuildID = Environment.GetEnvironmentVariable("GUILD_ID");
+            
+            if (string.IsNullOrEmpty(GuildID))
+            {
+                Console.WriteLine("Guild ID is not set in environment variables.");
+                return;
+            }
+
             ulong _id;
             bool success = ulong.TryParse(GuildID, out _id);
 
@@ -351,9 +367,6 @@ namespace DiscordBot
 
     public class NexonApiService
     {
-
-        string apiKey = Environment.GetEnvironmentVariable("API_KEY");
-
         private readonly HttpClient _httpClient;
         private readonly string _filePath = "notice_ids.txt";
         private readonly HashSet<long> _previousNoticeIds;
@@ -368,6 +381,15 @@ namespace DiscordBot
 
         public NexonApiService()
         {
+
+            string apiKey = Environment.GetEnvironmentVariable("API_KEY");
+
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                Console.WriteLine("API Key is not set in environment variables.");
+                return;
+            }
+
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("accept", "application/json");
             _httpClient.DefaultRequestHeaders.Add("x-nxopen-api-key", apiKey);
