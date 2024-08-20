@@ -1,16 +1,4 @@
 ﻿// See https://aka.ms/new-console-template for more information
-//MTI2OTU0Mzg3NjkwMTg2NzU5NA.GTJTnH.rMrE11YjpqYxGCLr5sapLb38_2wD7F2O-IGK4Y - 맑음봇 토큰
-//string mentionToPatch = $"<@&{1175695651636514886}>";
-//string imgUrlToPatch = "https://media.discordapp.net/attachments/1072220784262664253/1177153740520833084/FileDownloader.png?ex=66b9159a&is=66b7c41a&hm=b8f70c8323e0117ba7e136425294f1a5bd3288dad63834a7fe4ae7241addbded&=&format=webp&quality=lossless&width=810&height=162";
-
-
-// 역할 멘션을 추가한 메시지
-//string mentionToNotice = $"<@&{1175695614567256095}>";
-//string imgUrlToNotice = "https://media.discordapp.net/attachments/1072220784262664253/1177152621560221786/images.jpg?ex=66b9148f&is=66b7c30f&hm=2e76682efdcdd8b27112cf6dd3bc33a45f00c343eb3b13de1746e399419c8354&=&format=webp";
-//테섭이미지 https://media.discordapp.net/attachments/1072220784262664253/1272572564044255345/gm_news_04.png?ex=66bb770e&is=66ba258e&hm=6146a79ba6234e1b35ea938bdd6ffd9673cdfdb77e82dcff49144e62186a6699&=&format=webp&quality=lossless&width=810&height=162
-
-//878506826545655859 실제 서버 ID
-// nexonAPI ID : test_801f3742a10330739576cc3b0199c33ad5f3615fbeb08785131c3b20b2e9b44aefe8d04e6d233bd35cf2fabdeb93fb0d
 
 /*     private const ulong GuildId = 878506826545655859; // 서버 ID
        private const ulong ChannelId = 878506916303749150; // 채널 ID
@@ -45,8 +33,9 @@ namespace DiscordBot
     class Program
     {
         // 상수 및 설정 값
-        private const string Token = "MTI2OTU0Mzg3NjkwMTg2NzU5NA.GTJTnH.rMrE11YjpqYxGCLr5sapLb38_2wD7F2O-IGK4Y"; // 봇 토큰을 여기에 입력하세요
-        private const ulong GuildId = 1067415854075088947; // 서버 ID
+        string discordBotToken = Environment.GetEnvironmentVariable("DISCORD_BOT_TOKEN");
+        string GuildID = Environment.GetEnvironmentVariable("GUILD_ID");
+
         private const ulong ChannelId = 1173925554144170065; // 채널 ID
         private const ulong RoleIdPatch = 1173919883667439676; // Patch 역할 ID
         private const ulong RoleIdNotice = 1174961036185587752; // Notice 역할 ID
@@ -71,6 +60,8 @@ namespace DiscordBot
         };
 
 
+
+
         private DiscordSocketClient _client;
         private Random _rand = new Random();
 
@@ -90,7 +81,7 @@ namespace DiscordBot
             _client.Log += LogAsync;
             _client.SlashCommandExecuted += SlashCommandHandlerAsync;
 
-            await _client.LoginAsync(TokenType.Bot, Token);
+            await _client.LoginAsync(TokenType.Bot, discordBotToken);
             await _client.StartAsync();
 
             _client.Ready += async () =>
@@ -114,7 +105,19 @@ namespace DiscordBot
 
         private async Task RegisterCommandsAsync()
         {
-            var guild = _client.GetGuild(GuildId);
+            ulong _id;
+            bool success = ulong.TryParse(GuildID, out _id);
+
+            if(success)
+            {
+                Console.WriteLine("Guild ID Loaded successfully.");
+            }
+            else
+            {
+                Console.WriteLine("Guild ID Error!");
+            }
+
+            var guild = _client.GetGuild(_id);
 
             var commands = new List<SlashCommandBuilder>
             {
@@ -348,6 +351,9 @@ namespace DiscordBot
 
     public class NexonApiService
     {
+
+        string apiKey = Environment.GetEnvironmentVariable("API_KEY");
+
         private readonly HttpClient _httpClient;
         private readonly string _filePath = "notice_ids.txt";
         private readonly HashSet<long> _previousNoticeIds;
@@ -364,7 +370,7 @@ namespace DiscordBot
         {
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("accept", "application/json");
-            _httpClient.DefaultRequestHeaders.Add("x-nxopen-api-key", "live_801f3742a10330739576cc3b0199c33a39f91eb34bf8f4714908a997459f1c6fefe8d04e6d233bd35cf2fabdeb93fb0d");
+            _httpClient.DefaultRequestHeaders.Add("x-nxopen-api-key", apiKey);
 
             _previousNoticeIds = LoadPreviousNoticeIds();
         }
